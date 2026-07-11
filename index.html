@@ -253,22 +253,30 @@ controls.dampingFactor = 0.08;
 controls.target.set(0,0,0);
 controls.enablePan = false;
 
-// Distanz, bei der die ganze bunte Scheibe (Radius ~R_FIT) ins Bild passt –
-// abhängig vom Seitenverhältnis, damit es auf Handy (Hochformat) wie Desktop klappt.
+// Distanz + Bildausschnitt so, dass die ganze bunte Scheibe (Radius ~R_FIT)
+// in den FREIEN Bereich zwischen Kopfzeile und Bedienfeld passt und dort
+// zentriert wird – damit unten nichts vom Bedienfeld verdeckt wird und die
+// Beschriftungen (Sommer/Winter …) immer vollständig sichtbar sind.
 const R_FIT = 19.6;   // Radius inkl. Beschriftungen, mit etwas Rand
-function rawFit(){
+let _fitDist = 40;
+function idealDist(){ return _fitDist; }
+function updateViewport(){
+  const W = innerWidth, H = innerHeight;
+  const topH = (document.getElementById('topbar')?.offsetHeight || 80) + 6;
+  const botH = (document.getElementById('controls')?.offsetHeight || 160) + 6;
+  const availH = Math.max(150, H - topH - botH);   // nutzbare Höhe (ohne UI)
   const t = Math.tan(THREE.MathUtils.degToRad(camera.fov)/2);
-  return R_FIT / (t * Math.min(1, camera.aspect));
+  // Distanz, bei der 2*R_FIT sowohl in availH (vertikal) als auch in W passt
+  _fitDist = (R_FIT / t) * Math.max(H/availH, H/W);
+  // Inhalt in den freien Bereich verschieben (Weltursprung -> Mitte des Bandes)
+  const shift = (botH - topH) / 2;                 // px: >0 = nach oben
+  camera.setViewOffset(W, H, 0, shift, W, H);
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  controls.minDistance = _fitDist * 0.80;
+  controls.maxDistance = _fitDist * 2.6;
 }
-function idealDist(){ return rawFit(); }
-// Zoom-Grenzen an die Passdistanz koppeln: Reinzoomen nur so weit, dass die
-// Beschriftungen im Bild bleiben; Rauszoomen für Überblick erlaubt.
-function applyZoomLimits(){
-  const f = rawFit();
-  controls.minDistance = f * 0.74;
-  controls.maxDistance = f * 2.6;
-}
-applyZoomLimits();
+updateViewport();
 // aktuelle Blickrichtung (Nord: von oben, Süd: von unten)
 let viewDir = new THREE.Vector3(0, 0.88, 0.48).normalize();
 camera.position.copy(viewDir.clone().multiplyScalar(idealDist()));
@@ -621,9 +629,8 @@ document.querySelectorAll('#hemiSeg button').forEach(b=>{
 el.months.addEventListener('change', ()=>{ monthsGroup.visible = el.months.checked; });
 
 addEventListener('resize', ()=>{
-  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-  applyZoomLimits();
+  updateViewport();
   // Distanz nachziehen, damit die Scheibe im Bild bleibt (Richtung beibehalten)
   const dir = camera.position.clone().normalize();
   camera.position.copy(dir.multiplyScalar(idealDist()));
