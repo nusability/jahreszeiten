@@ -1,0 +1,47 @@
+name: Deploy to GitHub Pages
+
+# Veröffentlicht die statische index.html auf GitHub Pages.
+on:
+  push:
+    branches:
+      - claude/seasons-3d-orbital-app-5eu2d5
+      - main
+      - master
+  workflow_dispatch:
+
+# Rechte, die der GITHUB_TOKEN für das Pages-Deployment braucht.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Immer nur ein Deployment gleichzeitig; laufende nicht abbrechen.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Aktiviert GitHub Pages bei Bedarf automatisch (enablement).
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # Das gesamte Repo-Root (enthält index.html) als Artefakt hochladen.
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
