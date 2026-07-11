@@ -257,7 +257,7 @@ controls.enablePan = false;
 
 // Distanz, bei der die ganze bunte Scheibe (Radius ~R_FIT) ins Bild passt –
 // abhängig vom Seitenverhältnis, damit es auf Handy (Hochformat) wie Desktop klappt.
-const R_FIT = 17.5;
+const R_FIT = 19.6;   // Radius inkl. Beschriftungen, mit etwas Rand
 function idealDist(){
   const vfov = THREE.MathUtils.degToRad(camera.fov);
   const t = Math.tan(vfov/2);
@@ -385,11 +385,12 @@ function buildFloor(hemi){
 
     const mid = (s.a0+s.a1)/2;
     // Jahreszeit-Name (mittig auf dem Sektor)
-    const nameSpr = makeTextSprite(`${vis.icon} ${s.season}`, { font:120, bg:'rgba(10,15,35,0.62)', color:'#ffffff', scale:2.5 });
-    nameSpr.position.copy(orbitPos(mid, RMID)); nameSpr.position.y = sgn*0.5;
+    const nameSpr = makeTextSprite(`${vis.icon} ${s.season}`, { font:120, bg:'rgba(10,15,35,0.62)', color:'#ffffff', scale:2.15 });
+    // Name nach innen (innerhalb der Umlaufbahn), damit die Erde ihn nie verdeckt
+    nameSpr.position.copy(orbitPos(mid, 8.4)); nameSpr.position.y = sgn*0.5;
     floorGroup.add(nameSpr);
-    // Bildchen: eins nach innen, eins nach außen, plus seitlich
-    const spots = [ [mid-0.36, RMID+2.7], [mid+0.36, RMID+2.7], [mid, FLOOR_IN+1.0] ];
+    // Bildchen: zwei außen (jenseits der Bahn), eins am inneren Rand
+    const spots = [ [mid-0.34, RMID+3.0], [mid+0.34, RMID+3.0], [mid, FLOOR_IN+0.7] ];
     vis.emojis.forEach((e,i)=>{
       const [ang,rad] = spots[i];
       const spr = makeTextSprite(e, { font:150, pad:20, scale:2.6 });
@@ -496,6 +497,7 @@ let theta = dayToTheta(191);   // Start: 11. Juli (heute)
 let playing = true;
 const SPEED = TWO_PI / 34;      // ein Jahr in ~34 s
 let camAnim = null;
+const Z_AXIS = new THREE.Vector3(0, 0, 1);   // Welt-Z ≈ Blickachse (zur Kamera)
 
 const el = {
   seasonName: document.getElementById('seasonName'),
@@ -569,13 +571,21 @@ function setHemisphere(h){
     const season = seasonAt(dayToTheta(+b.dataset.day));
     b.textContent = `${SEASON[season].icon} ${season}`;
   });
-  // Kamera über (Nord) bzw. unter (Süd) die Bahnebene bewegen (steile Draufsicht)
-  viewDir = (h==='north')
-    ? new THREE.Vector3(0, 0.88, 0.48).normalize()
-    : new THREE.Vector3(0,-0.88, 0.48).normalize();
-  const target = viewDir.clone().multiplyScalar(idealDist());
-  camAnim = { from:camera.position.clone(), to:target, t:0 };
-  controls.enabled = false;
+  // Perspektivwechsel als 180°-Rolle um die Blickachse (z, vom Betrachter aus):
+  // Die ganze Welt wird auf den Kopf gestellt – beim Süden zeigt der Südpol
+  // nach oben (kein nordzentriertes Weltbild). Umgesetzt als Rotation von
+  // Kameraposition UND Up-Vektor um die Welt-Z-Achse (die grob zur Kamera zeigt).
+  const wantSouth = (h === 'south');
+  const isSouth = camera.up.y < 0;               // aktueller Zustand
+  if(wantSouth !== isSouth){
+    camAnim = {
+      fromPos: camera.position.clone(),
+      fromUp:  camera.up.clone(),
+      delta:   wantSouth ? Math.PI : -Math.PI,   // Süd: +180°, Nord: zurück
+      t: 0,
+    };
+    controls.enabled = false;
+  }
   updateReadout();
 }
 
@@ -629,11 +639,13 @@ function loop(now){
   if(playing){ theta += SPEED*dt; updateEarth(); updateReadout(); }
 
   if(camAnim){
-    camAnim.t = Math.min(1, camAnim.t + dt*1.6);
-    const e = 1 - Math.pow(1-camAnim.t, 3); // easeOutCubic
-    camera.position.lerpVectors(camAnim.from, camAnim.to, e);
-    camera.lookAt(0,0,0);
-    if(camAnim.t>=1){ camAnim=null; controls.enabled=true; }
+    camAnim.t = Math.min(1, camAnim.t + dt*1.15);
+    const e = camAnim.t<0.5 ? 4*camAnim.t**3 : 1-Math.pow(-2*camAnim.t+2,3)/2; // easeInOut
+    const ang = camAnim.delta * e;
+    camera.position.copy(camAnim.fromPos).applyAxisAngle(Z_AXIS, ang);
+    camera.up.copy(camAnim.fromUp).applyAxisAngle(Z_AXIS, ang);
+    camera.lookAt(controls.target);
+    if(camAnim.t>=1){ camAnim=null; controls.enabled=true; controls.update(); }
   }
 
   sun.rotation.y += dt*0.15;
