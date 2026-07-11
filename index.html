@@ -261,7 +261,12 @@ const R_FIT = 19.6;   // Radius inkl. Beschriftungen, mit etwas Rand
 let _fitDist = 40;
 function idealDist(){ return _fitDist; }
 function updateViewport(){
-  const W = innerWidth, H = innerHeight;
+  // visualViewport = die auf iOS Safari WIRKLICH sichtbare Fläche (ohne die
+  // ein-/ausblendbare Browser-Toolbar); Fallback auf innerWidth/Height.
+  const vv = window.visualViewport;
+  const W = Math.round(vv ? vv.width  : innerWidth);
+  const H = Math.round(vv ? vv.height : innerHeight);
+  renderer.setSize(W, H, true);
   const topH = (document.getElementById('topbar')?.offsetHeight || 80) + 6;
   const botH = (document.getElementById('controls')?.offsetHeight || 160) + 6;
   const availH = Math.max(150, H - topH - botH);   // nutzbare Höhe (ohne UI)
@@ -339,7 +344,12 @@ function makeTextSprite(text, { font=180, pad=40, bg=null, color='#ffffff', weig
   const ctx = c.getContext('2d');
   const f = `${weight} ${font}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji", system-ui, sans-serif`;
   ctx.font = f;
-  const w = Math.ceil(ctx.measureText(text).width) + pad*2;
+  // Bei kurzen Strings (einzelne Emojis) eine Mindestbreite erzwingen: iOS
+  // Safari unterschätzt bei Variationsselektor-Emojis (☀️/❄️) die
+  // measureText-Breite -> sonst wird das Emoji im Canvas abgeschnitten.
+  const measured = ctx.measureText(text).width;
+  const floor = text.length <= 4 ? font * 1.5 : 0;
+  const w = Math.ceil(Math.max(measured, floor)) + pad*2;
   const h = font + pad*2;
   c.width = w; c.height = h;
   ctx.font = f; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -398,7 +408,10 @@ function buildFloor(hemi){
 
     const mid = (s.a0+s.a1)/2;
     // Jahreszeit-Name (mittig auf dem Sektor)
-    const nameSpr = makeTextSprite(`${vis.icon} ${s.season}`, { font:120, bg:'rgba(10,15,35,0.62)', color:'#ffffff', scale:1.9 });
+    // Nur der reine Text (ohne Emoji-Icon): Variationsselektor-Emojis wie ☀️/❄️
+    // werden auf iOS Safari von measureText falsch vermessen -> Text würde
+    // abgeschnitten. Die Emojis erscheinen ohnehin groß als Sektor-Bildchen.
+    const nameSpr = makeTextSprite(s.season, { font:120, pad:64, bg:'rgba(10,15,35,0.62)', color:'#ffffff', scale:1.9 });
     // Name nach innen (innerhalb der Umlaufbahn), damit die Erde ihn nie verdeckt
     nameSpr.position.copy(orbitPos(mid, 8.4)); nameSpr.position.y = sgn*0.5;
     floorGroup.add(nameSpr);
@@ -628,14 +641,20 @@ document.querySelectorAll('#hemiSeg button').forEach(b=>{
 });
 el.months.addEventListener('change', ()=>{ monthsGroup.visible = el.months.checked; });
 
-addEventListener('resize', ()=>{
-  renderer.setSize(innerWidth, innerHeight);
-  updateViewport();
+function onResize(){
+  updateViewport();   // setzt auch renderer-Größe (visualViewport-aware)
   // Distanz nachziehen, damit die Scheibe im Bild bleibt (Richtung beibehalten)
   const dir = camera.position.clone().normalize();
   camera.position.copy(dir.multiplyScalar(idealDist()));
   camera.lookAt(controls.target);
-});
+}
+addEventListener('resize', onResize);
+addEventListener('orientationchange', onResize);
+// iOS Safari: auf Ein-/Ausblenden der Toolbar reagieren
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', onResize);
+  window.visualViewport.addEventListener('scroll', onResize);
+}
 
 /* =========================================================================
    Los!
