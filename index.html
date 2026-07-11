@@ -251,19 +251,24 @@ const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.target.set(0,0,0);
-controls.minDistance = 18;
-controls.maxDistance = 140;
 controls.enablePan = false;
 
 // Distanz, bei der die ganze bunte Scheibe (Radius ~R_FIT) ins Bild passt –
 // abhängig vom Seitenverhältnis, damit es auf Handy (Hochformat) wie Desktop klappt.
 const R_FIT = 19.6;   // Radius inkl. Beschriftungen, mit etwas Rand
-function idealDist(){
-  const vfov = THREE.MathUtils.degToRad(camera.fov);
-  const t = Math.tan(vfov/2);
-  const fit = R_FIT / (t * Math.min(1, camera.aspect));
-  return THREE.MathUtils.clamp(fit, controls.minDistance+1, controls.maxDistance);
+function rawFit(){
+  const t = Math.tan(THREE.MathUtils.degToRad(camera.fov)/2);
+  return R_FIT / (t * Math.min(1, camera.aspect));
 }
+function idealDist(){ return rawFit(); }
+// Zoom-Grenzen an die Passdistanz koppeln: Reinzoomen nur so weit, dass die
+// Beschriftungen im Bild bleiben; Rauszoomen für Überblick erlaubt.
+function applyZoomLimits(){
+  const f = rawFit();
+  controls.minDistance = f * 0.74;
+  controls.maxDistance = f * 2.6;
+}
+applyZoomLimits();
 // aktuelle Blickrichtung (Nord: von oben, Süd: von unten)
 let viewDir = new THREE.Vector3(0, 0.88, 0.48).normalize();
 camera.position.copy(viewDir.clone().multiplyScalar(idealDist()));
@@ -385,7 +390,7 @@ function buildFloor(hemi){
 
     const mid = (s.a0+s.a1)/2;
     // Jahreszeit-Name (mittig auf dem Sektor)
-    const nameSpr = makeTextSprite(`${vis.icon} ${s.season}`, { font:120, bg:'rgba(10,15,35,0.62)', color:'#ffffff', scale:2.15 });
+    const nameSpr = makeTextSprite(`${vis.icon} ${s.season}`, { font:120, bg:'rgba(10,15,35,0.62)', color:'#ffffff', scale:1.9 });
     // Name nach innen (innerhalb der Umlaufbahn), damit die Erde ihn nie verdeckt
     nameSpr.position.copy(orbitPos(mid, 8.4)); nameSpr.position.y = sgn*0.5;
     floorGroup.add(nameSpr);
@@ -576,6 +581,9 @@ function setHemisphere(h){
   // nach oben (kein nordzentriertes Weltbild). Umgesetzt als Rotation von
   // Kameraposition UND Up-Vektor um die Welt-Z-Achse (die grob zur Kamera zeigt).
   const wantSouth = (h === 'south');
+  // Swipe-Richtung anpassen: bei umgedrehtem Up-Vektor (Süd) dreht OrbitControls
+  // sonst spiegelverkehrt zur Fingerbewegung – deshalb Drehrichtung invertieren.
+  controls.rotateSpeed = wantSouth ? -1 : 1;
   const isSouth = camera.up.y < 0;               // aktueller Zustand
   if(wantSouth !== isSouth){
     camAnim = {
@@ -615,6 +623,7 @@ el.months.addEventListener('change', ()=>{ monthsGroup.visible = el.months.check
 addEventListener('resize', ()=>{
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  applyZoomLimits();
   // Distanz nachziehen, damit die Scheibe im Bild bleibt (Richtung beibehalten)
   const dir = camera.position.clone().normalize();
   camera.position.copy(dir.multiplyScalar(idealDist()));
