@@ -97,6 +97,12 @@
   .spacer{ flex:1 1 auto; }
   .hint{ text-align:center; font-size:11px; color:var(--muted); margin-top:-2px; }
 
+  /* Ein-/Ausblenden der Bedien-Oberfläche per Tap außerhalb der UI */
+  #topbar, #controls{ transition: opacity .35s ease; }
+  body.ui-hidden #topbar,
+  body.ui-hidden #controls,
+  body.ui-hidden #info{ opacity:0; pointer-events:none; }
+
   #loader{
     position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px;
     background:#05070f; z-index:50; text-align:center; padding:20px;
@@ -278,8 +284,9 @@ function updateViewport(){
   camera.setViewOffset(W, H, 0, shift, W, H);
   camera.aspect = W / H;
   camera.updateProjectionMatrix();
-  controls.minDistance = _fitDist * 0.80;
-  controls.maxDistance = _fitDist * 2.6;
+  // Zoom bewusst frei: nah heran (Erde/Achse betrachten) bis weit heraus.
+  controls.minDistance = _fitDist * 0.32;
+  controls.maxDistance = _fitDist * 3.6;
 }
 updateViewport();
 // Blickrichtung leicht von oben. Azimut so wählen, dass der 1. Januar oben liegt:
@@ -650,6 +657,32 @@ document.querySelectorAll('#hemiSeg button').forEach(b=>{
   b.addEventListener('click', ()=> setHemisphere(b.dataset.hemi));
 });
 el.months.addEventListener('change', ()=>{ monthsGroup.visible = el.months.checked; });
+
+/* ---- Tap außerhalb der UI blendet die Bedienelemente aus/ein (Fade) ---- */
+(function tapToToggleUI(){
+  const active = new Set();
+  let tap = null;                          // {x,y,t,ok}
+  const MOVE_TOL = 10;                      // px: darüber gilt es als Drehen
+  canvas.addEventListener('pointerdown', e=>{
+    active.add(e.pointerId);
+    if(active.size === 1) tap = { x:e.clientX, y:e.clientY, t:e.timeStamp, ok:true };
+    else if(tap) tap.ok = false;           // zweiter Finger -> kein Tap (Zoom)
+  });
+  canvas.addEventListener('pointermove', e=>{
+    if(tap && tap.ok && Math.hypot(e.clientX-tap.x, e.clientY-tap.y) > MOVE_TOL) tap.ok = false;
+  });
+  function end(e){
+    active.delete(e.pointerId);
+    if(active.size === 0){
+      if(tap && tap.ok && (e.timeStamp - tap.t) < 350){
+        document.body.classList.toggle('ui-hidden');
+      }
+      tap = null;
+    }
+  }
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+})();
 
 function onResize(){
   updateViewport();   // setzt auch renderer-Größe (visualViewport-aware)
