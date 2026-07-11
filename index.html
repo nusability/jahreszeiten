@@ -282,8 +282,16 @@ function updateViewport(){
   controls.maxDistance = _fitDist * 2.6;
 }
 updateViewport();
-// aktuelle Blickrichtung (Nord: von oben, Süd: von unten)
-let viewDir = new THREE.Vector3(0, 0.88, 0.48).normalize();
+// Blickrichtung leicht von oben. Azimut so wählen, dass der 1. Januar oben liegt:
+// Oben im Bild erscheint die Bahnrichtung, die der horizontalen Kameraneigung
+// entgegengesetzt ist -> horizontale Neigung = -(Richtung des 1. Januar).
+const TILT_V = 0.88, TILT_H = 0.48;
+const janTheta = dayToTheta(0);                 // Bahnwinkel des 1. Januar
+let viewDir = new THREE.Vector3(
+  -Math.cos(janTheta) * TILT_H,
+  TILT_V,
+  -Math.sin(janTheta) * TILT_H
+).normalize();
 camera.position.copy(viewDir.clone().multiplyScalar(idealDist()));
 camera.lookAt(0,0,0);
 
@@ -523,7 +531,6 @@ let theta = dayToTheta(191);   // Start: 11. Juli (heute)
 let playing = true;
 const SPEED = TWO_PI / 34;      // ein Jahr in ~34 s
 let camAnim = null;
-const Z_AXIS = new THREE.Vector3(0, 0, 1);   // Welt-Z ≈ Blickachse (zur Kamera)
 
 const el = {
   seasonName: document.getElementById('seasonName'),
@@ -597,19 +604,22 @@ function setHemisphere(h){
     const season = seasonAt(dayToTheta(+b.dataset.day));
     b.textContent = `${SEASON[season].icon} ${season}`;
   });
-  // Perspektivwechsel als 180°-Rolle um die Blickachse (z, vom Betrachter aus):
-  // Die ganze Welt wird auf den Kopf gestellt – beim Süden zeigt der Südpol
-  // nach oben (kein nordzentriertes Weltbild). Umgesetzt als Rotation von
-  // Kameraposition UND Up-Vektor um die Welt-Z-Achse (die grob zur Kamera zeigt).
+  // Perspektivwechsel als 180°-Umklappen: Die ganze Welt wird auf den Kopf
+  // gestellt – beim Süden zeigt der Südpol nach oben (kein nordzentriertes
+  // Weltbild). Gedreht wird um die HORIZONTALE Projektion der Blickrichtung,
+  // sodass die Ansicht sauber „nach hinten überklappt" – unabhängig davon,
+  // welcher Monat gerade oben liegt.
   const wantSouth = (h === 'south');
   // Swipe-Richtung anpassen: bei umgedrehtem Up-Vektor (Süd) dreht OrbitControls
   // sonst spiegelverkehrt zur Fingerbewegung – deshalb Drehrichtung invertieren.
   controls.rotateSpeed = wantSouth ? -1 : 1;
   const isSouth = camera.up.y < 0;               // aktueller Zustand
   if(wantSouth !== isSouth){
+    const axis = new THREE.Vector3(camera.position.x, 0, camera.position.z).normalize();
     camAnim = {
       fromPos: camera.position.clone(),
       fromUp:  camera.up.clone(),
+      axis,
       delta:   wantSouth ? Math.PI : -Math.PI,   // Süd: +180°, Nord: zurück
       t: 0,
     };
@@ -677,8 +687,8 @@ function loop(now){
     camAnim.t = Math.min(1, camAnim.t + dt*1.15);
     const e = camAnim.t<0.5 ? 4*camAnim.t**3 : 1-Math.pow(-2*camAnim.t+2,3)/2; // easeInOut
     const ang = camAnim.delta * e;
-    camera.position.copy(camAnim.fromPos).applyAxisAngle(Z_AXIS, ang);
-    camera.up.copy(camAnim.fromUp).applyAxisAngle(Z_AXIS, ang);
+    camera.position.copy(camAnim.fromPos).applyAxisAngle(camAnim.axis, ang);
+    camera.up.copy(camAnim.fromUp).applyAxisAngle(camAnim.axis, ang);
     camera.lookAt(controls.target);
     if(camAnim.t>=1){ camAnim=null; controls.enabled=true; controls.update(); }
   }
