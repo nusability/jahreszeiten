@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1026" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌍%3C/text%3E%3C/svg%3E" />
+<title>Die Jahreszeiten – Reise der Erde um die Sonne</title>
+<style>
+  :root{
+    --panel: rgba(14,20,45,0.82);
+    --panel-solid:#11173a;
+    --accent:#ffd23f;
+    --text:#f4f7ff;
+    --muted:#aab6e6;
+    --btn:#20295e;
+    --btn-active:#ffd23f;
+    --btn-active-text:#241a02;
+    --radius:16px;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family:"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background:#05070f; color:var(--text);
+    overflow:hidden; touch-action:none;
+    -webkit-user-select:none; user-select:none;
+  }
+  #scene{ position:fixed; inset:0; display:block; }
+
+  /* ---------- Kopf / Info ---------- */
+  #topbar{
+    position:fixed; top:0; left:0; right:0; padding:10px 14px calc(10px);
+    display:flex; gap:12px; align-items:flex-start; justify-content:space-between;
+    pointer-events:none;
+  }
+  #title{
+    pointer-events:none;
+    font-weight:800; font-size:clamp(15px,4.4vw,24px);
+    letter-spacing:.2px; text-shadow:0 2px 10px rgba(0,0,0,.6);
+  }
+  #title small{ display:block; font-weight:600; font-size:.62em; color:var(--muted); }
+  #info{
+    pointer-events:auto;
+    background:var(--panel); backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:var(--radius); padding:10px 12px; min-width:150px; max-width:52vw;
+    box-shadow:0 8px 30px rgba(0,0,0,.4);
+  }
+  #info .season{ font-size:clamp(18px,5.5vw,26px); font-weight:800; display:flex; align-items:center; gap:8px; }
+  #info .date{ color:var(--accent); font-weight:700; font-size:clamp(13px,3.6vw,16px); margin-top:2px; }
+  #info .hemi{ color:var(--muted); font-size:12px; margin-top:4px; }
+  #info .tilt{ font-size:12px; margin-top:6px; line-height:1.35; color:#dfe6ff; }
+
+  /* ---------- Steuerung unten ---------- */
+  #controls{
+    position:fixed; left:0; right:0; bottom:0;
+    padding:12px 12px calc(12px + var(--safe-b));
+    background:linear-gradient(to top, rgba(6,9,20,.96), rgba(6,9,20,.75) 70%, rgba(6,9,20,0));
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .row{ display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .slider-row{ display:flex; gap:10px; align-items:center; }
+  .slider-row label{ font-size:11px; color:var(--muted); white-space:nowrap; }
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; flex:1; height:8px; border-radius:8px;
+    background:linear-gradient(90deg,#bfe3ff,#9fe07f,#ffe14d,#f0913c,#bfe3ff);
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:26px; height:26px; border-radius:50%;
+    background:#fff; border:3px solid var(--accent); box-shadow:0 2px 8px rgba(0,0,0,.5); cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:24px; height:24px; border-radius:50%; background:#fff; border:3px solid var(--accent); cursor:pointer;
+  }
+  button{
+    font-family:inherit; font-weight:700; color:var(--text);
+    background:var(--btn); border:1px solid rgba(255,255,255,.1);
+    border-radius:14px; padding:11px 13px; font-size:14px; cursor:pointer;
+    min-height:46px; display:inline-flex; align-items:center; gap:6px; justify-content:center;
+    transition:transform .06s ease, background .15s ease;
+  }
+  button:active{ transform:scale(.95); }
+  button.season-btn{ flex:1 1 0; min-width:0; font-size:13px; padding:11px 6px; }
+  button.active{ background:var(--btn-active); color:var(--btn-active-text); border-color:transparent; }
+  #playBtn{ font-size:20px; min-width:54px; }
+  .seg{ display:flex; background:var(--btn); border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,.1); }
+  .seg button{ border:none; border-radius:0; background:transparent; min-height:44px; }
+  .seg button.active{ background:var(--btn-active); color:var(--btn-active-text); }
+  .toggle{
+    display:inline-flex; align-items:center; gap:8px; background:var(--btn);
+    border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:9px 12px; font-size:13px; min-height:46px; cursor:pointer;
+  }
+  .toggle input{ width:20px; height:20px; accent-color:var(--accent); }
+  .spacer{ flex:1 1 auto; }
+  .hint{ text-align:center; font-size:11px; color:var(--muted); margin-top:-2px; }
+
+  #loader{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px;
+    background:#05070f; z-index:50; text-align:center; padding:20px;
+  }
+  #loader .sun{ font-size:54px; animation:spin 3s linear infinite; }
+  #loader p{ color:var(--muted); }
+  #loader .err{ color:#ff9a9a; max-width:420px; font-size:13px; }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+
+  /* Desktop: Steuerung kompakter zentrieren */
+  @media (min-width:760px){
+    #controls{ left:50%; right:auto; transform:translateX(-50%); width:min(680px,94vw);
+      bottom:14px; border-radius:20px; border:1px solid rgba(255,255,255,.08);
+      background:var(--panel); backdrop-filter:blur(10px); }
+    #topbar{ padding:16px 20px; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div id="topbar">
+    <div id="title">Die Jahreszeiten
+      <small>Die Reise der Erde um die Sonne 🌍☀️</small>
+    </div>
+    <div id="info" aria-live="polite">
+      <div class="season" id="seasonName">☀️ Sommer</div>
+      <div class="date" id="dateLabel">11. Juli</div>
+      <div class="hemi" id="hemiLabel">Blick auf die Nordhalbkugel</div>
+      <div class="tilt" id="tiltLabel"></div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <div class="slider-row">
+      <button id="playBtn" title="Abspielen / Pause" aria-label="Abspielen oder Pause">⏸️</button>
+      <label>Jahr</label>
+      <input type="range" id="yearSlider" min="0" max="364" value="191" step="1" aria-label="Tag im Jahr" />
+    </div>
+
+    <div class="row" id="seasonBtns">
+      <button class="season-btn" data-day="124">🌸 Frühling</button>
+      <button class="season-btn" data-day="217">☀️ Sommer</button>
+      <button class="season-btn" data-day="308">🍂 Herbst</button>
+      <button class="season-btn" data-day="33">❄️ Winter</button>
+    </div>
+
+    <div class="row">
+      <div class="seg" id="hemiSeg" role="group" aria-label="Halbkugel wählen">
+        <button data-hemi="north" class="active">⬆️ Norden</button>
+        <button data-hemi="south">⬇️ Süden</button>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="monthsToggle" /> Monate zeigen
+      </label>
+    </div>
+    <div class="hint">Ziehe mit dem Finger, um die Ansicht zu drehen · Zwei Finger zum Zoomen</div>
+  </div>
+
+  <div id="loader">
+    <div class="sun">☀️</div>
+    <p>Die Erde startet ihre Reise…</p>
+    <div class="err" id="loaderErr"></div>
+  </div>
+
+<script>
+  // Falls das CDN (Three.js) nicht lädt: nach einigen Sekunden Hinweis zeigen.
+  window.__seasonsReady = false;
+  setTimeout(function(){
+    var l = document.getElementById('loader');
+    if(l && l.style.display !== 'none' && !window.__seasonsReady){
+      var e = document.getElementById('loaderErr');
+      if(e) e.innerHTML = 'Die 3D‑Bibliothek konnte nicht geladen werden.<br>Bitte prüfe die Internetverbindung und lade die Seite neu.<br><small>(Die App lädt Three.js einmalig aus dem Netz.)</small>';
+    }
+  }, 9000);
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* =========================================================================
+   Grundlagen / Konstanten
+   Sonne = Ursprung. Erdbahn liegt in der XZ-Ebene (Y = oben).
+   Erdachse ist im Raum FEST geneigt (23,5°, Richtung +X) – dadurch wechseln
+   die Jahreszeiten, während die Erde die Sonne umkreist.
+   ========================================================================= */
+const TILT = THREE.MathUtils.degToRad(23.5);
+const ORBIT_R = 11;               // Bahnradius
+const SUN_R = 1.9;
+const EARTH_R = 1.25;
+const FLOOR_IN = 5.6, FLOOR_OUT = 15.6;   // farbige Fläche der Bahnebene
+const SOLSTICE_Y = 0.9699;        // 21. Dez (Tag 354) = θ 0  → Nordwinter bei +X
+const TWO_PI = Math.PI * 2;
+const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const MONTH_LEN = [31,28,31,30,31,30,31,31,30,31,30,31]; // 2026 (kein Schaltjahr)
+
+// Jahreszeiten-Optik (Farbe der Fläche + Bildchen)
+const SEASON = {
+  'Winter':   { color:0xbfe3ff, grad:['#e7f4ff','#9cc9f2'], emojis:['❄️','⛄','🎿'], icon:'❄️' },
+  'Frühling': { color:0xa6e483, grad:['#ddffca','#7ec863'], emojis:['🌸','🌱','🐝'], icon:'🌸' },
+  'Sommer':   { color:0xffe14d, grad:['#fff3b0','#ffcf3f'], emojis:['☀️','🌻','🏖️'], icon:'☀️' },
+  'Herbst':   { color:0xf0913c, grad:['#ffd9a8','#e07a2a'], emojis:['🍂','🍁','🍄'], icon:'🍂' },
+};
+// Sektoren der Bahn (jeweils 90°). Reihenfolge = Nordhalbkugel.
+// θ 0..90 Winter, 90..180 Frühling, 180..270 Sommer, 270..360 Herbst.
+const BASE_SECTORS = [
+  { a0:0,            a1:Math.PI/2,     north:'Winter'   },
+  { a0:Math.PI/2,    a1:Math.PI,       north:'Frühling' },
+  { a0:Math.PI,      a1:3*Math.PI/2,   north:'Sommer'   },
+  { a0:3*Math.PI/2,  a1:TWO_PI,        north:'Herbst'   },
+];
+const OPPOSITE = { 'Winter':'Sommer','Sommer':'Winter','Frühling':'Herbst','Herbst':'Frühling' };
+
+/* ---- Datum <-> Bahnwinkel ---- */
+function dayToTheta(d){ return TWO_PI * (d/365 - SOLSTICE_Y); }
+function thetaToDay(t){
+  let y = (t/TWO_PI + SOLSTICE_Y) % 1; if(y<0) y+=1;
+  return y*365;
+}
+function dayToDate(d){
+  d = ((Math.round(d)%365)+365)%365;
+  let m=0, dd=d;
+  while(dd >= MONTH_LEN[m]){ dd -= MONTH_LEN[m]; m++; }
+  return { day:dd+1, month:m };
+}
+function orbitPos(theta, r=ORBIT_R){ return new THREE.Vector3(Math.cos(theta)*r, 0, Math.sin(theta)*r); }
+
+/* =========================================================================
+   Szene
+   ========================================================================= */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060a18);
+
+const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 500);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0,0,0);
+controls.minDistance = 18;
+controls.maxDistance = 140;
+controls.enablePan = false;
+
+// Distanz, bei der die ganze bunte Scheibe (Radius ~R_FIT) ins Bild passt –
+// abhängig vom Seitenverhältnis, damit es auf Handy (Hochformat) wie Desktop klappt.
+const R_FIT = 17.5;
+function idealDist(){
+  const vfov = THREE.MathUtils.degToRad(camera.fov);
+  const t = Math.tan(vfov/2);
+  const fit = R_FIT / (t * Math.min(1, camera.aspect));
+  return THREE.MathUtils.clamp(fit, controls.minDistance+1, controls.maxDistance);
+}
+// aktuelle Blickrichtung (Nord: von oben, Süd: von unten)
+let viewDir = new THREE.Vector3(0, 0.88, 0.48).normalize();
+camera.position.copy(viewDir.clone().multiplyScalar(idealDist()));
+camera.lookAt(0,0,0);
+
+// Licht: Sonne strahlt aus dem Zentrum, dazu etwas Grundlicht (Nachtseite bleibt sichtbar)
+const sunLight = new THREE.PointLight(0xfff4d6, 2.6, 0, 0.7);
+scene.add(sunLight);
+scene.add(new THREE.AmbientLight(0x35406e, 0.55));
+
+/* ---- Sternenhimmel ---- */
+(function stars(){
+  const g = new THREE.BufferGeometry();
+  const n = 900, pos = new Float32Array(n*3);
+  // deterministisch, ohne Math.random
+  for(let i=0;i<n;i++){
+    const a = i*2.399963, r = 120 + (i%50);
+    const y = ((i*97)%200 - 100);
+    pos[i*3]   = Math.cos(a)*r;
+    pos[i*3+1] = y;
+    pos[i*3+2] = Math.sin(a)*r;
+  }
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const m = new THREE.PointsMaterial({ color:0xffffff, size:0.7, sizeAttenuation:true, transparent:true, opacity:.75 });
+  scene.add(new THREE.Points(g,m));
+})();
+
+/* ---- Sonne ---- */
+const sun = new THREE.Mesh(
+  new THREE.SphereGeometry(SUN_R, 48, 48),
+  new THREE.MeshBasicMaterial({ color:0xffd23f })
+);
+scene.add(sun);
+// Leuchtender Halo (Sprite)
+function makeGlow(size, inner, outer){
+  const c = document.createElement('canvas'); c.width=c.height=256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(128,128,10,128,128,128);
+  g.addColorStop(0, inner); g.addColorStop(0.4, outer); g.addColorStop(1,'rgba(255,180,60,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,256,256);
+  const t = new THREE.CanvasTexture(c);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:t, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
+  s.scale.set(size,size,1);
+  return s;
+}
+sun.add(makeGlow(SUN_R*2.9, 'rgba(255,235,150,0.85)', 'rgba(255,170,50,0.26)'));
+
+/* ---- Bahnlinie ---- */
+(function orbitLine(){
+  const pts=[]; for(let i=0;i<=128;i++){ const t=i/128*TWO_PI; pts.push(orbitPos(t)); }
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:.25 })));
+})();
+
+/* =========================================================================
+   Text-/Emoji-Sprites (für Fläche)
+   ========================================================================= */
+function makeTextSprite(text, { font=180, pad=40, bg=null, color='#ffffff', weight='800', scale=2.6 }={}){
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  const f = `${weight} ${font}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji", system-ui, sans-serif`;
+  ctx.font = f;
+  const w = Math.ceil(ctx.measureText(text).width) + pad*2;
+  const h = font + pad*2;
+  c.width = w; c.height = h;
+  ctx.font = f; ctx.textAlign='center'; ctx.textBaseline='middle';
+  if(bg){
+    const r=h*0.32; ctx.fillStyle=bg;
+    ctx.beginPath();
+    ctx.roundRect(0,0,w,h,r); ctx.fill();
+  }
+  ctx.fillStyle=color;
+  ctx.shadowColor='rgba(0,0,0,.45)'; ctx.shadowBlur=10;
+  ctx.fillText(text, w/2, h/2 + font*0.04);
+  const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 4;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthWrite:false }));
+  spr.scale.set(scale * w/h, scale, 1);
+  return spr;
+}
+
+/* =========================================================================
+   Bahnfläche: Jahreszeiten-Sektoren  (+ Monatsflächen optional)
+   Ring liegt nach rotation.x = +90° in der XZ-Ebene; lokaler Winkel == θ.
+   ========================================================================= */
+const floorGroup = new THREE.Group(); scene.add(floorGroup);
+const monthsGroup = new THREE.Group(); monthsGroup.visible = false; scene.add(monthsGroup);
+
+function flatSector(a0, a1, rin, rout, colorHex, opacity, yy){
+  const geo = new THREE.RingGeometry(rin, rout, 72, 1, a0, a1-a0);
+  const mat = new THREE.MeshBasicMaterial({ color:colorHex, transparent:opacity<1, opacity, side:THREE.DoubleSide });
+  const m = new THREE.Mesh(geo, mat);
+  m.rotation.x = Math.PI/2; m.position.y = yy;
+  return m;
+}
+
+// aktuelle Sektor-Zuordnung (für Season-Lookup)
+let currentSectors = [];
+
+function buildFloor(hemi){
+  // aufräumen
+  while(floorGroup.children.length){ const o=floorGroup.children.pop(); o.geometry?.dispose?.(); o.material?.map?.dispose?.(); o.material?.dispose?.(); }
+  currentSectors = BASE_SECTORS.map(s => ({
+    a0:s.a0, a1:s.a1,
+    season: hemi==='north' ? s.north : OPPOSITE[s.north]
+  }));
+
+  const RMID = (FLOOR_IN+FLOOR_OUT)/2;
+  // Labels auf die Seite legen, von der die Kamera schaut (Nord = oben, Süd = unten),
+  // sonst verdeckt die deckende Farbfläche die Beschriftung.
+  const sgn = hemi==='north' ? 1 : -1;
+
+  currentSectors.forEach(s=>{
+    const vis = SEASON[s.season];
+    const gap = 0.014;
+    // kräftige Fläche mit sanftem Innen->Außen-Verlauf (zwei Ringe)
+    floorGroup.add( flatSector(s.a0+gap, s.a1-gap, FLOOR_IN, RMID, hexOf(vis.grad[0]), 1.0, 0) );
+    floorGroup.add( flatSector(s.a0+gap, s.a1-gap, RMID, FLOOR_OUT, hexOf(vis.grad[1]), 1.0, 0) );
+
+    const mid = (s.a0+s.a1)/2;
+    // Jahreszeit-Name (mittig auf dem Sektor)
+    const nameSpr = makeTextSprite(`${vis.icon} ${s.season}`, { font:120, bg:'rgba(10,15,35,0.62)', color:'#ffffff', scale:2.5 });
+    nameSpr.position.copy(orbitPos(mid, RMID)); nameSpr.position.y = sgn*0.5;
+    floorGroup.add(nameSpr);
+    // Bildchen: eins nach innen, eins nach außen, plus seitlich
+    const spots = [ [mid-0.36, RMID+2.7], [mid+0.36, RMID+2.7], [mid, FLOOR_IN+1.0] ];
+    vis.emojis.forEach((e,i)=>{
+      const [ang,rad] = spots[i];
+      const spr = makeTextSprite(e, { font:150, pad:20, scale:2.6 });
+      spr.position.copy(orbitPos(ang, rad)); spr.position.y = sgn*0.35;
+      floorGroup.add(spr);
+    });
+  });
+}
+
+// '#rrggbb' -> 0xrrggbb
+function hexOf(css){ return parseInt(css.replace('#',''),16); }
+
+function buildMonths(hemi){
+  while(monthsGroup.children.length){ const o=monthsGroup.children.pop(); o.geometry?.dispose?.(); o.material?.map?.dispose?.(); o.material?.dispose?.(); }
+  const sgn = hemi==='north' ? 1 : -1;
+  for(let m=0;m<12;m++){
+    const t0 = dayToTheta( MONTH_LEN.slice(0,m).reduce((a,b)=>a+b,0) );        // Monatsanfang
+    const t1 = dayToTheta( MONTH_LEN.slice(0,m+1).reduce((a,b)=>a+b,0) );      // Monatsende
+    // Fläche (halbtransparente Kachel) – abwechselnd hell/dunkel zur Trennung
+    const geo = new THREE.RingGeometry(FLOOR_IN, FLOOR_OUT, 20, 1, t0, t1-t0);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent:true, opacity:(m%2===0)?0.14:0.05, side:THREE.DoubleSide, depthWrite:false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = Math.PI/2; mesh.position.y = sgn*0.10; monthsGroup.add(mesh);
+
+    // Trennlinie am Monatsanfang
+    const lp=[ orbitPos(t0, FLOOR_IN), orbitPos(t0, FLOOR_OUT) ];
+    const lg=new THREE.BufferGeometry().setFromPoints(lp);
+    const line=new THREE.Line(lg, new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:.4 }));
+    line.position.y=sgn*0.12; monthsGroup.add(line);
+
+    // Monatsname
+    const mid=(t0+t1)/2;
+    const spr=makeTextSprite(MONTH_NAMES[m].slice(0,3), { font:90, bg:'rgba(10,15,35,0.6)', color:'#ffffff', scale:1.35 });
+    spr.position.copy(orbitPos(mid, 15.0)); spr.position.y=sgn*0.42; monthsGroup.add(spr);
+  }
+}
+
+/* =========================================================================
+   Erde  (Achse fest geneigt)
+   earthPivot: nur Translation (auf der Bahn)  →  tiltGroup: feste Neigung
+   ========================================================================= */
+const earthPivot = new THREE.Object3D(); scene.add(earthPivot);
+const tiltGroup = new THREE.Object3D();
+tiltGroup.rotation.z = -TILT;   // Nordpol neigt Richtung +X
+earthPivot.add(tiltGroup);
+
+// prozedurale Erdtextur (Ozean + Landflecken + Polkappen)
+function earthTexture(){
+  const c=document.createElement('canvas'); c.width=512; c.height=256; const ctx=c.getContext('2d');
+  const g=ctx.createLinearGradient(0,0,0,256);
+  g.addColorStop(0,'#eaf4ff'); g.addColorStop(0.12,'#2a7fd4'); g.addColorStop(0.5,'#2f8fe0');
+  g.addColorStop(0.88,'#2a7fd4'); g.addColorStop(1,'#eaf4ff');
+  ctx.fillStyle=g; ctx.fillRect(0,0,512,256);
+  // Kontinente (deterministische Blobs)
+  const blobs=[[70,150,42],[120,120,30],[210,90,40],[250,150,34],[330,120,46],[300,180,26],[410,150,38],[450,100,24],[160,190,26]];
+  ctx.fillStyle='#4fae55';
+  blobs.forEach(([x,y,r])=>{ ctx.beginPath(); ctx.ellipse(x,y,r,r*0.7,0,0,TWO_PI); ctx.fill(); });
+  ctx.fillStyle='#6cc16f';
+  blobs.forEach(([x,y,r])=>{ ctx.beginPath(); ctx.ellipse(x-6,y-6,r*0.5,r*0.4,0,0,TWO_PI); ctx.fill(); });
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const earth = new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R, 48, 48),
+  new THREE.MeshStandardMaterial({ map:earthTexture(), roughness:0.85, metalness:0.0 })
+);
+tiltGroup.add(earth);
+
+// Erdachse (Stab) + Pole
+const axis = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.035,0.035, EARTH_R*3.1, 12),
+  new THREE.MeshBasicMaterial({ color:0xffffff })
+);
+tiltGroup.add(axis);
+const northCap = new THREE.Mesh(new THREE.ConeGeometry(0.13,0.28,16), new THREE.MeshBasicMaterial({ color:0xff5d5d }));
+northCap.position.y = EARTH_R*1.55; tiltGroup.add(northCap);
+const southCap = new THREE.Mesh(new THREE.SphereGeometry(0.11,16,16), new THREE.MeshBasicMaterial({ color:0x5db4ff }));
+southCap.position.y = -EARTH_R*1.55; tiltGroup.add(southCap);
+// Äquatorring
+const eq = new THREE.Mesh(
+  new THREE.TorusGeometry(EARTH_R*1.02, 0.012, 8, 48),
+  new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:.5 })
+);
+eq.rotation.x = Math.PI/2; tiltGroup.add(eq);
+
+// "Nord"/"Süd" Fähnchen an den Polen
+const northFlag = makeTextSprite('N', { font:110, bg:'rgba(220,60,60,0.9)', color:'#fff', scale:0.7 });
+northFlag.position.y = EARTH_R*2.05; tiltGroup.add(northFlag);
+const southFlag = makeTextSprite('S', { font:110, bg:'rgba(60,130,230,0.9)', color:'#fff', scale:0.7 });
+southFlag.position.y = -EARTH_R*2.05; tiltGroup.add(southFlag);
+
+// Linie Erde → Sonne (zeigt, wie sich der Winkel der Achse zur Sonne ändert)
+const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const rayLine = new THREE.Line(rayGeo, new THREE.LineDashedMaterial({ color:0xffe14d, dashSize:0.5, gapSize:0.3, transparent:true, opacity:.8 }));
+scene.add(rayLine);
+
+/* =========================================================================
+   Zustand + UI
+   ========================================================================= */
+let hemisphere = 'north';
+let theta = dayToTheta(191);   // Start: 11. Juli (heute)
+let playing = true;
+const SPEED = TWO_PI / 34;      // ein Jahr in ~34 s
+let camAnim = null;
+
+const el = {
+  seasonName: document.getElementById('seasonName'),
+  dateLabel:  document.getElementById('dateLabel'),
+  hemiLabel:  document.getElementById('hemiLabel'),
+  tiltLabel:  document.getElementById('tiltLabel'),
+  slider:     document.getElementById('yearSlider'),
+  play:       document.getElementById('playBtn'),
+  months:     document.getElementById('monthsToggle'),
+  loader:     document.getElementById('loader'),
+};
+
+function seasonAt(t){
+  let a = t % TWO_PI; if(a<0) a+=TWO_PI;
+  const s = currentSectors.find(s=> a>=s.a0 && a<s.a1) || currentSectors[0];
+  return s.season;
+}
+
+function updateReadout(){
+  const day = thetaToDay(theta);
+  const { day:dd, month } = dayToDate(day);
+  const season = seasonAt(theta);
+  const vis = SEASON[season];
+  el.seasonName.textContent = `${vis.icon} ${season}`;
+  el.dateLabel.textContent = `${dd}. ${MONTH_NAMES[month]}`;
+  el.hemiLabel.textContent = hemisphere==='north' ? 'Blick auf die Nordhalbkugel ⬆️' : 'Blick auf die Südhalbkugel ⬇️';
+
+  // Neigung des betrachteten Pols zur Sonne
+  // Achse (fest) = (sinTILT, cosTILT, 0). Sonnenrichtung von der Erde = -pos/|pos|.
+  let a = theta % TWO_PI; if(a<0) a+=TWO_PI;
+  let northDot = -Math.sin(TILT)*Math.cos(a);     // >0: Nordpol zur Sonne
+  let poleDot = hemisphere==='north' ? northDot : -northDot;
+  const poleName = hemisphere==='north' ? 'Nordpol' : 'Südpol';
+  let txt;
+  if(poleDot > 0.03)      txt = `☀️ Der ${poleName} ist zur Sonne geneigt – lange, warme Tage.`;
+  else if(poleDot < -0.03) txt = `🌙 Der ${poleName} ist von der Sonne weg geneigt – kurze, kalte Tage.`;
+  else                    txt = `⚖️ Die Achse steht seitwärts – Tag und Nacht sind gleich lang.`;
+  el.tiltLabel.textContent = txt;
+
+  if(document.activeElement !== el.slider){
+    el.slider.value = Math.round(((day%365)+365)%365);
+  }
+
+  // aktiven Season-Button hervorheben
+  document.querySelectorAll('.season-btn').forEach(b=>{
+    b.classList.toggle('active', seasonAt(dayToTheta(+b.dataset.day)) === season);
+  });
+}
+
+function updateEarth(){
+  earthPivot.position.copy(orbitPos(theta));
+  // Erde dreht sich langsam um ihre (geneigte) Achse – nur Optik
+  earth.rotation.y = theta * 6.0;
+  // Sonnenlicht sitzt in der Sonne
+  sunLight.position.set(0,0,0);
+  // Strahl Erde→Sonne
+  const p = earthPivot.position;
+  rayGeo.setFromPoints([ new THREE.Vector3(p.x*0.14, 0, p.z*0.14), new THREE.Vector3(p.x*0.93,0,p.z*0.93) ]);
+  rayLine.computeLineDistances();
+}
+
+/* ---- Kamera-Wechsel Nord/Süd ---- */
+function setHemisphere(h){
+  hemisphere = h;
+  buildFloor(h);
+  buildMonths(h);
+  monthsGroup.visible = el.months.checked;
+  document.querySelectorAll('#hemiSeg button').forEach(b=> b.classList.toggle('active', b.dataset.hemi===h));
+  // Season-Buttons passend zur Halbkugel beschriften
+  document.querySelectorAll('.season-btn').forEach(b=>{
+    const season = seasonAt(dayToTheta(+b.dataset.day));
+    b.textContent = `${SEASON[season].icon} ${season}`;
+  });
+  // Kamera über (Nord) bzw. unter (Süd) die Bahnebene bewegen (steile Draufsicht)
+  viewDir = (h==='north')
+    ? new THREE.Vector3(0, 0.88, 0.48).normalize()
+    : new THREE.Vector3(0,-0.88, 0.48).normalize();
+  const target = viewDir.clone().multiplyScalar(idealDist());
+  camAnim = { from:camera.position.clone(), to:target, t:0 };
+  controls.enabled = false;
+  updateReadout();
+}
+
+/* =========================================================================
+   Interaktion
+   ========================================================================= */
+el.play.addEventListener('click', ()=>{
+  playing = !playing;
+  el.play.textContent = playing ? '⏸️' : '▶️';
+});
+el.slider.addEventListener('input', ()=>{
+  theta = dayToTheta(+el.slider.value);
+  if(playing){ playing=false; el.play.textContent='▶️'; }
+  updateEarth(); updateReadout();
+});
+document.querySelectorAll('.season-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    theta = dayToTheta(+b.dataset.day);
+    updateEarth(); updateReadout();
+  });
+});
+document.querySelectorAll('#hemiSeg button').forEach(b=>{
+  b.addEventListener('click', ()=> setHemisphere(b.dataset.hemi));
+});
+el.months.addEventListener('change', ()=>{ monthsGroup.visible = el.months.checked; });
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  // Distanz nachziehen, damit die Scheibe im Bild bleibt (Richtung beibehalten)
+  const dir = camera.position.clone().normalize();
+  camera.position.copy(dir.multiplyScalar(idealDist()));
+  camera.lookAt(controls.target);
+});
+
+/* =========================================================================
+   Los!
+   ========================================================================= */
+buildFloor('north');
+buildMonths('north');
+updateEarth();
+updateReadout();
+window.__seasonsReady = true;
+el.loader.style.display='none';
+
+let last = 0;
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = last ? Math.min((now-last)/1000, 0.05) : 0; last = now;
+
+  if(playing){ theta += SPEED*dt; updateEarth(); updateReadout(); }
+
+  if(camAnim){
+    camAnim.t = Math.min(1, camAnim.t + dt*1.6);
+    const e = 1 - Math.pow(1-camAnim.t, 3); // easeOutCubic
+    camera.position.lerpVectors(camAnim.from, camAnim.to, e);
+    camera.lookAt(0,0,0);
+    if(camAnim.t>=1){ camAnim=null; controls.enabled=true; }
+  }
+
+  sun.rotation.y += dt*0.15;
+  controls.update();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
